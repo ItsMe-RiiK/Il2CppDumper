@@ -1,11 +1,13 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Il2CppDumper
+
 {
     public sealed class Metadata : BinaryStream
     {
@@ -182,6 +184,33 @@ namespace Il2CppDumper
             if (!stringCache.TryGetValue(index, out var result))
             {
                 result = ReadStringToNull(header.stringOffset + index);
+                
+                if (Program.config != null && Program.config.DeobfuscateNames)
+                {
+                    bool isObfuscated = false;
+                    foreach (char c in result)
+                    {
+                        if (c > 127) // non-ASCII
+                        {
+                            isObfuscated = true;
+                            break;
+                        }
+                    }
+                    if (isObfuscated)
+                    {
+                        using (MD5 md5 = MD5.Create())
+                        {
+                            byte[] hashBytes = md5.ComputeHash(Encoding.UTF8.GetBytes(result));
+                            StringBuilder sb = new StringBuilder("Obf_");
+                            for (int i = 0; i < 4; i++) // Use first 4 bytes for 8 char hash
+                            {
+                                sb.Append(hashBytes[i].ToString("X2"));
+                            }
+                            result = sb.ToString();
+                        }
+                    }
+                }
+                
                 stringCache.Add(index, result);
             }
             return result;
